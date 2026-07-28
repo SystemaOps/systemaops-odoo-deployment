@@ -1,0 +1,29 @@
+name: Odoo Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: "Deployment ID"
+        required: true
+
+      customer_name:
+        description: "Customer Name"
+        required: true
+
+jobs:
+  deployment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Print Deployment Details
+        run: |
+          echo "Deployment ID: ${{ github.event.inputs.deployment_id }}"
+          echo "Customer Name: ${{ github.event.inputs.customer_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Triggered By: ${{ github.actor }}"
+          echo "Current Time:"
+          date
