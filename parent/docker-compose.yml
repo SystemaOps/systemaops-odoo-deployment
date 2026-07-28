@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+
+  odoo18:
+    build: .
+    #image: odoo:18.0
+    depends_on:
+      - db
+    environment:
+      - HOST=db
+      - USER=odoo
+      - PASSWORD=odoo
+      - ODOO_PROXY_MODE=True
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+    ports:
+      - "8069:8069"
+      - "8072:8072"
+    command: odoo -d odoo_db --db_user=odoo --db_password=odoo --db_host=db --workers=2 # --max-cron-threads=1
+
+#  nginx:
+#    image: nginx:latest
+#    depends_on:
+#      - odoo18
+#    #  - odoo18-longpolling
+#    ports:
+#      - "8080:80"
+#    volumes:
+#      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  odoo-web-data:
+  odoo-db-data:
