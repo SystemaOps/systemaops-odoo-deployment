@@ -1,0 +1,21 @@
+# Database & Web Data
+odoo-db-data/
+odoo-web-data/
+backups/
+
+# Compressed Archives & ZIP files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+
+# Backup & Temp Files
+*_bkp.*
+*.bkp
+*.swp
+*~
+.DS_Store
+
+# Environment & Config Overrides
+.env
