@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_DIR="/root/odoo/systemaops/parent"
+PROJECT_DIR="/root/odoo/systemaops"
 BACKUP_ROOT="/srv/backups"
 DATE="$(date +%F)"
 BACKUP_DIR="$BACKUP_ROOT/$DATE"
@@ -35,4 +35,8 @@ docker exec "$ODOO_CONTAINER" tar -czf - /var/lib/odoo > "$BACKUP_DIR/filestore.
 # Project backup
 tar -czf "$BACKUP_DIR/systemaops.tar.gz" -C /root/odoo systemaops
 
+# Retention cleanup
+find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -mtime +4 -type d -print -exec rm -rf {} \;
+
 echo "Backup finished $(date)"
+

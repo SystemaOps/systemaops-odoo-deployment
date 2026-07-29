@@ -17,3 +17,4 @@ RUN apt-get update \
 ENV PATH="/opt/venv/bin:$PATH"
 
 USER odoo
+
