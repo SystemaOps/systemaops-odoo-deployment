@@ -1,0 +1,48 @@
+name: SystemaOps Odoo Deployment Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: "Unique deployment identifier"
+        required: true
+        type: string
+      deployment_config:
+        description: "JSON string with all customer deployment parameters"
+        required: true
+        type: string
+
+env:
+  DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
+
+jobs:
+  prepare:
+    name: Prepare Deployment Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse Deployment Configuration
+        env:
+          DEPLOYMENT_CONFIG: ${{ github.event.inputs.deployment_config }}
+        run: python3 scripts/prepare/parse_config.py
+
+      - name: Create Customer Workspace
+        run: python3 scripts/prepare/create_workspace.py
+
+      - name: Update Configuration Files
+        run: python3 scripts/prepare/update_configs.py
+
+      - name: Validate Selected Modules
+        run: python3 scripts/prepare/validate_modules.py
+
+      - name: Generate Deployment Metadata
+        run: python3 scripts/prepare/generate_metadata.py
+
+      - name: Package Deployment
+        run: python3 scripts/prepare/package_deployment.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployment-${{ github.event.inputs.deployment_id }}
+          path: deployments/customer_${{ github.event.inputs.deployment_id }}/
