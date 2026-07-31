@@ -1,5 +1,0 @@
-- [Tecnativa](https://www.tecnativa.com):
-  - Jairo Llopis
-  - David Vidal
-- [Therp BV](https://www.therp.nl):
-  - Giovanni Francesco Capalbo
