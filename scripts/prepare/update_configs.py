@@ -35,6 +35,7 @@ def _update_docker_compose(
 
     content = content.replace("odoo:", f"odoo_{safe}:")
     content = content.replace("db:", f"db_{safe}:")
+    content = content.replace("- db", f"- db_{safe}")
     content = content.replace("odoo-net", f"odoo_net_{safe}")
     content = content.replace("odoo-data", f"odoo_data_{safe}")
     content = content.replace("odoo-db-data", f"odoo_db_data_{safe}")
@@ -57,10 +58,12 @@ def _update_docker_compose(
     info(f"Updated docker-compose.yml for {company_slug}")
 
 
-def _update_odoo_conf(path, db_password: str, db_user: str, admin_password: str) -> None:
+def _update_odoo_conf(
+    path, db_password: str, db_user: str, db_host: str, admin_password: str
+) -> None:
     content = read_text(path)
     content = content.replace("admin_passwd = admin", f"admin_passwd = {admin_password}")
-    content = content.replace("db_host = db", f"db_host = db_{db_user}")
+    content = content.replace("db_host = db", f"db_host = {db_host}")
     content = content.replace("db_user = odoo", f"db_user = {db_user}")
     content = content.replace("db_password = odoo", f"db_password = {db_password}")
     write_text(path, content)
@@ -119,7 +122,8 @@ def main() -> None:
     _update_odoo_conf(
         customer_dir / "config/odoo.conf",
         db_password,
-        f"odoo_{safe_name}" if safe_name else "odoo_customer",
+        f"odoo_{container_prefix}",
+        f"db_{container_prefix}",
         admin_password,
     )
 
