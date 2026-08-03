@@ -6,21 +6,22 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, _REPO_ROOT)
 
-from scripts.utils.config import ADDONS_DIR, get_customer_dir, load_deployment_env
+from scripts.utils.config import get_customer_dir, load_deployment_env
 from scripts.utils.logger import error, info, warn
 
 
-def _get_available_addons() -> set:
-    if not ADDONS_DIR.exists():
-        warn(f"Addons directory not found: {ADDONS_DIR}")
+def _get_available_addons(customer_dir) -> set:
+    addons_dir = customer_dir / "addons" if customer_dir else None
+    if addons_dir is None or not addons_dir.exists():
+        warn(f"Addons directory not found: {addons_dir}")
         return set()
-    return {p.name for p in ADDONS_DIR.iterdir() if p.is_dir() and not p.name.startswith(".")}
+    return {p.name for p in addons_dir.iterdir() if p.is_dir() and not p.name.startswith(".")}
 
 
 def validate_modules(
     requested: list, customer_dir
 ) -> dict:
-    available = _get_available_addons()
+    available = _get_available_addons(customer_dir)
     report = {
         "requested_modules": requested,
         "available_modules": sorted(available),
