@@ -42,6 +42,13 @@ def generate_summary(env: dict, deployment_id: str) -> dict:
         "odoo_port": int(env.get("odoo_port", 8069)),
         "domain": env.get("domain", ""),
         "container_prefix": env.get("container_prefix", ""),
+        # Phase 2 target VM
+        "vm_provider": env.get("vm_provider", ""),
+        "vm_host": env.get("vm_host", ""),
+        "vm_ssh_user": env.get("vm_ssh_user", ""),
+        "vm_ssh_port": int(env.get("vm_ssh_port", 22) or 22),
+        "vm_domain": env.get("vm_domain", ""),
+        "ssh_key_secret": env.get("ssh_key_secret", ""),
     }
     return summary
 

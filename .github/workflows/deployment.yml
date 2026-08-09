@@ -46,3 +46,26 @@ jobs:
         with:
           name: deployment-${{ github.event.inputs.deployment_id }}
           path: deployments/customer_${{ github.event.inputs.deployment_id }}/
+
+  deploy:
+    name: Chain to VM Deployment (Phase 2)
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger deploy-to-vm workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
+          DEPLOYMENT_CONFIG: ${{ github.event.inputs.deployment_config }}
+        run: |
+          if [[ -z "$DEPLOYMENT_CONFIG" ]]; then
+            echo "No deployment_config provided; skipping Phase 2."
+            exit 0
+          fi
+          gh workflow run deploy-to-vm.yml \
+            --ref "${{ github.ref_name }}" \
+            -f deployment_id="$DEPLOYMENT_ID" \
+            -f deployment_config="$DEPLOYMENT_CONFIG"
+          echo "Phase 2 deploy-to-vm workflow triggered."

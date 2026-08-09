@@ -19,3 +19,6 @@ backups/
 
 # Environment & Config Overrides
 .env
+
+# Local deployment workspaces and archives
+deployments/

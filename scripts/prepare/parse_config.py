@@ -19,6 +19,13 @@ OPTIONAL_FIELDS = {
     "domain": "",
     "odoo_port": 8069,
     "nginx_port": 80,
+    # Phase 2 target VM
+    "vm_provider": "",
+    "vm_host": "",
+    "vm_ssh_user": "",
+    "vm_ssh_port": 22,
+    "vm_domain": "",
+    "ssh_key_secret": "",
 }
 
 
