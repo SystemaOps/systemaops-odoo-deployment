@@ -65,10 +65,9 @@ jobs:
 
       - name: Locate and stage workspace
         run: |
-          WORKSPACE_DIR="artifact/customer_${DEPLOYMENT_ID}"
-          if [[ ! -d "$WORKSPACE_DIR" ]]; then
-            WORKSPACE_DIR="$(find artifact -maxdepth 2 -type d -name 'customer_*' | head -1)"
-          fi
+          SUMMARY="$(find artifact -type f -name deployment_summary.json | head -1)"
+          [[ -n "$SUMMARY" ]] || { echo "deployment_summary.json not found in artifact"; exit 1; }
+          WORKSPACE_DIR="$(dirname "$SUMMARY")"
           echo "WORKSPACE_DIR=$WORKSPACE_DIR" >> "$GITHUB_ENV"
           echo "Using workspace: $WORKSPACE_DIR"
           test -f "$WORKSPACE_DIR/deployment_summary.json"
