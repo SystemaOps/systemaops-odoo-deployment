@@ -66,6 +66,7 @@ jobs:
             exit 0
           fi
           gh workflow run deploy-to-vm.yml \
+            -R "${{ github.repository }}" \
             --ref "${{ github.ref_name }}" \
             -f deployment_id="$DEPLOYMENT_ID" \
             -f deployment_config="$DEPLOYMENT_CONFIG" \
