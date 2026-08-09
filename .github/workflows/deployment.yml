@@ -11,6 +11,10 @@ on:
         description: "JSON string with all customer deployment parameters"
         required: true
         type: string
+      admin_password:
+        description: "Customer-chosen Odoo 'admin' login password (masked)."
+        required: false
+        type: password
 
 env:
   DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
@@ -31,6 +35,8 @@ jobs:
         run: python3 scripts/prepare/create_workspace.py
 
       - name: Update Configuration Files
+        env:
+          DEPLOYMENT_ADMIN_PASSWORD: ${{ github.event.inputs.admin_password }}
         run: python3 scripts/prepare/update_configs.py
 
       - name: Validate Selected Modules

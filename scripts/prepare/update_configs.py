@@ -101,7 +101,7 @@ def main() -> None:
 
     container_prefix = env.get("container_prefix", safe_name[:12] if safe_name else "customer")
     db_password = _random_password()
-    admin_password = _random_password()
+    admin_password = env.get("admin_password") or _random_password()
     try:
         odoo_port = int(env.get("odoo_port", 8069))
     except ValueError:
