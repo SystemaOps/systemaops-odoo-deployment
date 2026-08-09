@@ -57,7 +57,14 @@ ensure_docker() {
 start_stack() {
   cd "$WORKSPACE_DIR"
   log "building and starting stack"
-  docker compose up -d --build --wait 2>/dev/null || docker compose up -d --build
+  for i in 1 2 3; do
+    if docker compose up -d --build --wait 2>/dev/null || docker compose up -d --build; then
+      break
+    fi
+    log "compose up attempt $i failed; retrying in 10s"
+    [ "$i" = "3" ] && { echo "ERROR: stack failed to start after 3 attempts" >&2; exit 1; }
+    sleep 10
+  done
 
   log "waiting for db container healthy"
   for i in $(seq 1 60); do
@@ -80,6 +87,15 @@ init_database() {
 
   log "restarting odoo to serve the installed database"
   docker compose restart "$ODOO_SERVICE"
+
+  log "waiting for odoo to answer on port $ODOO_PORT"
+  for i in $(seq 1 90); do
+    if curl -fsS -o /dev/null "http://localhost:$ODOO_PORT/web/login" 2>/dev/null; then
+      break
+    fi
+    [ "$i" = "90" ] && { echo "ERROR: odoo did not answer after 3 minutes" >&2; exit 1; }
+    sleep 2
+  done
 }
 
 setup_nginx() {

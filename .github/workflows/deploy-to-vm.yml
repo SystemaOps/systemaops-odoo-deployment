@@ -79,12 +79,24 @@ jobs:
           set -euo pipefail
           [[ -n "$VM_HOST" ]] || { echo "vm_host missing in deployment_config"; exit 1; }
           REMOTE_DIR="/opt/systemaops/${DEPLOYMENT_ID}"
-          ssh -i ~/.ssh/id_deploy -p "$VM_SSH_PORT" -o StrictHostKeyChecking=accept-new \
-            "${VM_SSH_USER}@${VM_HOST}" "sudo mkdir -p '$REMOTE_DIR' && sudo chown \$(id -u):\$(id -g) '$REMOTE_DIR'"
-          scp -P "$VM_SSH_PORT" -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new \
-            -r "$WORKSPACE_DIR/." "${VM_SSH_USER}@${VM_HOST}:$REMOTE_DIR/"
-          scp -P "$VM_SSH_PORT" -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new \
-            scripts/deploy/remote_deploy.sh "${VM_SSH_USER}@${VM_HOST}:/tmp/remote_deploy.sh"
+          SSH_OPTS="-i ~/.ssh/id_deploy -p $VM_SSH_PORT -o StrictHostKeyChecking=accept-new"
+          for i in 1 2 3; do
+            if ssh $SSH_OPTS "${VM_SSH_USER}@${VM_HOST}" "sudo mkdir -p '$REMOTE_DIR' && sudo chown \$(id -u):\$(id -g) '$REMOTE_DIR'"; then
+              break
+            fi
+            [ "$i" = "3" ] && { echo "SSH connection to ${VM_HOST} failed after 3 attempts"; exit 1; }
+            sleep 3
+          done
+          for i in 1 2 3; do
+            if scp -P "$VM_SSH_PORT" -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new \
+                -r "$WORKSPACE_DIR/." "${VM_SSH_USER}@${VM_HOST}:$REMOTE_DIR/" \
+              && scp -P "$VM_SSH_PORT" -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new \
+                scripts/deploy/remote_deploy.sh "${VM_SSH_USER}@${VM_HOST}:/tmp/remote_deploy.sh"; then
+              break
+            fi
+            [ "$i" = "3" ] && { echo "Transfer to ${VM_HOST} failed after 3 attempts"; exit 1; }
+            sleep 3
+          done
 
       - name: Run remote deployment
         if: env.SSH_READY == 'true'
@@ -103,6 +115,7 @@ jobs:
         if: >-
           env.SSH_READY == 'true' &&
           github.event.inputs.central_register_url != ''
+        continue-on-error: true
         env:
           VM_HOST: ${{ steps.vm.outputs.VM_HOST }}
           VM_PROVIDER: ${{ steps.vm.outputs.VM_PROVIDER }}
@@ -110,9 +123,15 @@ jobs:
           CENTRAL_REGISTER_TOKEN: ${{ secrets.CENTRAL_REGISTER_TOKEN }}
         run: |
           set -euo pipefail
-          curl -fsS -X POST "${CENTRAL_REGISTER_URL}/api/monitoring/register" \
-            -H "X-Register-Token: ${CENTRAL_REGISTER_TOKEN}" \
-            --data-urlencode "deployment_id=${DEPLOYMENT_ID}" \
-            --data-urlencode "host=${VM_HOST}" \
-            --data-urlencode "labels=provider=${VM_PROVIDER:-}"
-          echo "Registered ${DEPLOYMENT_ID} (${VM_HOST}) with central monitoring."
+          for i in 1 2 3; do
+            if curl -fsS -X POST "${CENTRAL_REGISTER_URL}/api/monitoring/register" \
+              -H "X-Register-Token: ${CENTRAL_REGISTER_TOKEN}" \
+              --data-urlencode "deployment_id=${DEPLOYMENT_ID}" \
+              --data-urlencode "host=${VM_HOST}" \
+              --data-urlencode "labels=provider=${VM_PROVIDER:-}"; then
+              echo "Registered ${DEPLOYMENT_ID} (${VM_HOST}) with central monitoring."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "WARNING: central monitoring registration failed; deploy still succeeded."
