@@ -8,7 +8,7 @@
 # Usage: remote_deploy.sh /path/to/extracted/workspace
 set -euo pipefail
 
-WORKSPACE_DIR="${1:?usage: remote_deploy.sh <workspace_dir>}"
+WORKSPACE_DIR="$(cd "${1:?usage: remote_deploy.sh <workspace_dir>}" && pwd)"
 SUMMARY="$WORKSPACE_DIR/deployment_summary.json"
 INSTALL="$WORKSPACE_DIR/install_modules.json"
 
@@ -110,12 +110,20 @@ register_monitoring() {
   log "starting monitoring stack (node-exporter :9100, prometheus :9090)"
   cd "$MONITORING_DIR"
   DB_PASSWORD="$(grep -m1 '^db_password' "$WORKSPACE_DIR/config/odoo.conf" | cut -d= -f2 | tr -d ' ')"
+  ODOO_NETWORK="$(docker network ls --format '{{.Name}}' | grep "odoo_net_${PREFIX}" | head -1 || true)"
+  if [[ -z "$ODOO_NETWORK" ]]; then
+    log "WARNING: could not find the odoo docker network; monitoring stack skipped"
+    return 1
+  fi
   export DB_USER="odoo_${PREFIX}"
   export DB_PASSWORD="${DB_PASSWORD:-odoo}"
   export DB_HOST="${DB_SERVICE}"
   export POSTGRES_DB="${DB_NAME}"
-  export ODOO_NETWORK="${NETWORK}"
-  docker compose -f docker-compose.monitoring.yml up -d
+  export ODOO_NETWORK="${ODOO_NETWORK}"
+  docker compose -f docker-compose.monitoring.yml up -d || {
+    log "WARNING: monitoring stack failed to start; deploy continues"
+    return 1
+  }
 }
 
 cd "$WORKSPACE_DIR"
@@ -123,6 +131,6 @@ ensure_docker
 start_stack
 init_database
 setup_nginx
-register_monitoring
+register_monitoring || true
 
 echo "==> Phase 2 deploy complete: http://${TARGET_DOMAIN:-$ODOO_PORT}" 
