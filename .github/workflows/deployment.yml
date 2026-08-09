@@ -59,6 +59,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
           DEPLOYMENT_CONFIG: ${{ github.event.inputs.deployment_config }}
+          CENTRAL_REGISTER_URL: ${{ vars.CENTRAL_REGISTER_URL }}
         run: |
           if [[ -z "$DEPLOYMENT_CONFIG" ]]; then
             echo "No deployment_config provided; skipping Phase 2."
@@ -67,5 +68,6 @@ jobs:
           gh workflow run deploy-to-vm.yml \
             --ref "${{ github.ref_name }}" \
             -f deployment_id="$DEPLOYMENT_ID" \
-            -f deployment_config="$DEPLOYMENT_CONFIG"
+            -f deployment_config="$DEPLOYMENT_CONFIG" \
+            ${CENTRAL_REGISTER_URL:+-f central_register_url="$CENTRAL_REGISTER_URL"}
           echo "Phase 2 deploy-to-vm workflow triggered."
