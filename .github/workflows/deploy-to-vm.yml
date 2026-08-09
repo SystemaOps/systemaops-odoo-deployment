@@ -15,6 +15,10 @@ on:
         description: "Optional SystemaOps central monitoring registration URL"
         required: false
         type: string
+      source_run_id:
+        description: "Phase 1 run id that produced the deployment artifact"
+        required: false
+        type: string
 
 env:
   DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
@@ -41,10 +45,23 @@ jobs:
           echo "SSH_KEY_SECRET=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys,re;print(json.load(sys.stdin).get("ssh_key_secret",""))')" >> "$GITHUB_OUTPUT"
 
       - name: Download Phase 1 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: deployment-${{ github.event.inputs.deployment_id }}
-          path: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ github.event.inputs.source_run_id }}
+          ARTIFACT_NAME: deployment-${{ github.event.inputs.deployment_id }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SOURCE_RUN_ID" ]] || { echo "source_run_id not provided; cannot locate Phase 1 artifact."; exit 1; }
+          for i in 1 2 3; do
+            if gh run download "$SOURCE_RUN_ID" \
+                -R "${{ github.repository }}" \
+                -n "$ARTIFACT_NAME" \
+                -D artifact; then
+              break
+            fi
+            [ "$i" = "3" ] && { echo "Artifact download failed after 3 attempts"; exit 1; }
+            sleep 3
+          done
 
       - name: Locate and stage workspace
         run: |

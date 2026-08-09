@@ -70,5 +70,6 @@ jobs:
             --ref "${{ github.ref_name }}" \
             -f deployment_id="$DEPLOYMENT_ID" \
             -f deployment_config="$DEPLOYMENT_CONFIG" \
+            -f source_run_id="${{ github.run_id }}" \
             ${CENTRAL_REGISTER_URL:+-f central_register_url="$CENTRAL_REGISTER_URL"}
           echo "Phase 2 deploy-to-vm workflow triggered."
