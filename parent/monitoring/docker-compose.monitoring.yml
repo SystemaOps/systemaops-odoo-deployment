@@ -1,8 +1,10 @@
 version: "3.8"
 
 # Customer-VM monitoring stack. Started by the Phase 2 deploy script.
-# Node exporter and Prometheus bind to host ports 9100 and 9090 so the
-# central SystemaOps Prometheus can scrape this VM directly.
+# Prometheus scrapes this VM's own agents AND is scraped by the central
+# SystemaOps Prometheus (host ports 9100/9090).
+# Grafana is the customer-facing dashboard (host port 3002); it reuses the
+# Odoo admin password so no extra credential has to be delivered.
 
 services:
   node-exporter:
@@ -14,9 +16,25 @@ services:
     volumes:
       - /:/host:ro,rslave
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - "--housekeeping_interval=30s"
+
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     restart: unless-stopped
+    ports:
+      - "9187:9187"
     environment:
       DATA_SOURCE_NAME: "postgresql://${DB_USER:?set DB_USER}:${DB_PASSWORD:?set DB_PASSWORD}@${DB_HOST:?set DB_HOST}:5432/${POSTGRES_DB:?set POSTGRES_DB}?sslmode=disable"
     networks:
@@ -31,8 +49,25 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
 
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_PORT: ${GRAFANA_PORT:-3002}
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?set GF_SECURITY_ADMIN_PASSWORD to the Odoo admin password}
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
 volumes:
   prometheus-data:
+  grafana-data:
 
 networks:
   default:

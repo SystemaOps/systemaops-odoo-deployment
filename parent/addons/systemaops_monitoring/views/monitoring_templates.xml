@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="monitoring_page" name="SystemaOps Monitoring">
+        <t t-call="web.html_container">
+            <t t-set="body_classes" t-value="'systemaops-monitoring'"/>
+            <main class="container mt-3">
+                <h3>System Monitoring</h3>
+                <p class="text-muted">
+                    Live health of this Odoo stack (containers, database, server).
+                    Login: <b>admin</b> / the ERP admin password you set during onboarding.
+                </p>
+                <iframe
+                    t-att-src="monitoring_url"
+                    style="width:100%; height:85vh; border:1px solid #dee2e6;"
+                    title="Odoo stack monitoring dashboard"
+                />
+            </main>
+        </t>
+    </template>
+</odoo>

@@ -123,9 +123,10 @@ register_monitoring() {
     log "monitoring config not packaged; skipping"
     return
   fi
-  log "starting monitoring stack (node-exporter :9100, prometheus :9090)"
+  log "starting monitoring stack (node-exporter :9100, prometheus :9090, grafana :3002, cadvisor :8080)"
   cd "$MONITORING_DIR"
   DB_PASSWORD="$(grep -m1 '^db_password' "$WORKSPACE_DIR/config/odoo.conf" | cut -d= -f2 | tr -d ' ')"
+  ADMIN_PASSWORD="$(grep -m1 '^admin_passwd' "$WORKSPACE_DIR/config/odoo.conf" | cut -d= -f2 | tr -d ' ')"
   ODOO_NETWORK="$(docker network ls --format '{{.Name}}' | grep "odoo_net_${PREFIX}" | head -1 || true)"
   if [[ -z "$ODOO_NETWORK" ]]; then
     log "WARNING: could not find the odoo docker network; monitoring stack skipped"
@@ -136,10 +137,21 @@ register_monitoring() {
   export DB_HOST="${DB_SERVICE}"
   export POSTGRES_DB="${DB_NAME}"
   export ODOO_NETWORK="${ODOO_NETWORK}"
+  export GF_SECURITY_ADMIN_PASSWORD="${ADMIN_PASSWORD:?admin_passwd missing from odoo.conf}"
+  export GRAFANA_PORT="3002"
   docker compose -f docker-compose.monitoring.yml up -d || {
     log "WARNING: monitoring stack failed to start; deploy continues"
     return 1
   }
+
+  log "waiting for grafana dashboard to answer on port 3002"
+  for i in $(seq 1 30); do
+    if curl -fsS -o /dev/null "http://localhost:3002/api/health" 2>/dev/null; then
+      break
+    fi
+    [ "$i" = "30" ] && { log "WARNING: grafana did not answer on :3002 after 60s"; }
+    sleep 2
+  done
 }
 
 cd "$WORKSPACE_DIR"

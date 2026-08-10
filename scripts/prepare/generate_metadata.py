@@ -60,6 +60,11 @@ def generate_install_modules(env: dict) -> dict:
     except (json.JSONDecodeError, TypeError):
         modules = []
 
+    # The monitoring addon (menu + /monitoring + /metrics) ships with every
+    # deployment, so it must always be in the init/install list.
+    if "systemaops_monitoring" not in modules:
+        modules.append("systemaops_monitoring")
+
     install = {
         "install_modules": modules,
         "phase_2_instructions": {

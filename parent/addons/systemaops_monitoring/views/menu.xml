@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="systemaops_monitoring_menu_root" model="ir.ui.menu">
+        <field name="name">SystemaOps</field>
+        <field name="sequence">99</field>
+        <field name="parent_id" eval="False"/>
+    </record>
+
+    <record id="systemaops_monitoring_action" model="ir.actions.act_url">
+        <field name="name">Monitoring</field>
+        <field name="url">/monitoring</field>
+        <field name="target">self</field>
+    </record>
+
+    <menuitem
+        id="systemaops_monitoring_menuitem"
+        parent="systemaops_monitoring_menu_root"
+        action="systemaops_monitoring_action"
+        sequence="10"
+    />
+</odoo>
