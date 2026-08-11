@@ -54,6 +54,12 @@ def _update_docker_compose(
     odoo_service_lines = f"  odoo_{safe}:\n    container_name: odoo_{safe}\n    build:"
     content = content.replace("  odoo:", odoo_service_lines)
 
+    content = content.replace(
+        "      - ./config/odoo.conf:/etc/odoo/odoo.conf",
+        "      - ./config/odoo.conf:/etc/odoo/odoo.conf\n"
+        "      - ./monitoring.json:/etc/odoo/monitoring.json:ro",
+    )
+
     write_text(path, content)
     info(f"Updated docker-compose.yml for {company_slug}")
 
@@ -106,6 +112,10 @@ def main() -> None:
         odoo_port = int(env.get("odoo_port", 8069))
     except ValueError:
         odoo_port = 8069
+    try:
+        grafana_port = int(env.get("grafana_port", 3002))
+    except ValueError:
+        grafana_port = 3002
     domain = env.get("domain", "")
 
     customer_dir = get_customer_dir(deployment_id)
@@ -129,12 +139,18 @@ def main() -> None:
 
     _update_nginx_conf(customer_dir / "nginx.conf", domain, deployment_id)
 
+    write_text(
+        customer_dir / "monitoring.json",
+        json.dumps({"grafana_port": grafana_port}, indent=2),
+    )
+
     env_file = os.environ.get("GITHUB_ENV")
     if env_file:
         with open(env_file, "a") as f:
             f.write(f"DEPLOYMENT_DB_PASSWORD={db_password}\n")
             f.write(f"DEPLOYMENT_ADMIN_PASSWORD={admin_password}\n")
             f.write(f"DEPLOYMENT_ODOO_PORT={odoo_port}\n")
+            f.write(f"DEPLOYMENT_GRAFANA_PORT={grafana_port}\n")
 
     info("Configuration files updated successfully.")
 

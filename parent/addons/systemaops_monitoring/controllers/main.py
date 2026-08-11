@@ -1,3 +1,4 @@
+import json
 import threading
 
 from odoo import http
@@ -6,17 +7,29 @@ from odoo.http import request
 _requests_lock = threading.Lock()
 _requests_total = 0
 
+_DEFAULT_MONITORING_PORT = 3002
+
+
+def _grafana_port() -> int:
+    """Read the Grafana host port from monitoring.json (mounted by the
+    deployment pipeline). On a SystemaOps-managed server every customer gets
+    their own Grafana port, so it cannot be hardcoded."""
+    try:
+        with open("/etc/odoo/monitoring.json") as fh:
+            return int(json.load(fh).get("grafana_port") or _DEFAULT_MONITORING_PORT)
+    except (OSError, ValueError, TypeError):
+        return _DEFAULT_MONITORING_PORT
+
 
 class MonitoringController(http.Controller):
     """Exposes the embedded monitoring page and a small /metrics endpoint.
 
-    The Grafana dashboard runs on the customer VM (host port 3002) as part of
-    the monitoring stack started during Phase 2. The /monitoring route renders
-    an iframe pointing at it; the /metrics route is scraped by the local
-    Prometheus (job "odoo", target localhost:8069).
+    The Grafana dashboard runs on the customer VM (host port from
+    /etc/odoo/monitoring.json, default 3002) as part of the monitoring stack
+    started during Phase 2. The /monitoring route renders an iframe pointing
+    at it; the /metrics route is scraped by the local Prometheus
+    (job "odoo", target localhost:8069).
     """
-
-    MONITORING_PORT = 3002
 
     @http.route("/monitoring", type="http", auth="user", csrf=False)
     def monitoring(self, **kwargs):
@@ -68,4 +81,4 @@ class MonitoringController(http.Controller):
         hostname = host.rsplit(":", 1)[0].strip()
         if not hostname or hostname in ("localhost", "127.0.0.1"):
             hostname = "localhost"
-        return f"http://{hostname}:{self.MONITORING_PORT}/"
+        return f"http://{hostname}:{_grafana_port()}/"

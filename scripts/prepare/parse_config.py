@@ -18,6 +18,8 @@ OPTIONAL_FIELDS = {
     "number_of_users": 10,
     "domain": "",
     "odoo_port": 8069,
+    "grafana_port": 3002,
+    "admin_name": "admin",
     "nginx_port": 80,
     # Phase 2 target VM
     "vm_provider": "",

@@ -21,6 +21,8 @@ DEPLOYMENT_ID="$(python3 -c "import json;print(json.load(open('$SUMMARY'))['depl
 DB_NAME="$(python3 -c "import json;print(json.load(open('$SUMMARY'))['database_name'])")"
 PREFIX="$(python3 -c "import json;print(json.load(open('$SUMMARY'))['container_prefix'])")"
 ODOO_PORT="$(python3 -c "import json;print(json.load(open('$SUMMARY'))['odoo_port'])")"
+GRAFANA_PORT="$(python3 -c "import json;print(json.load(open('$SUMMARY')).get('grafana_port', 3002))")"
+ADMIN_NAME="$(python3 -c "import json;print(json.load(open('$SUMMARY')).get('admin_name', 'admin'))")"
 DOMAIN="$(python3 -c "import json;print(json.load(open('$SUMMARY'))['domain'])")"
 VM_DOMAIN="$(python3 -c "import json;print(json.load(open('$SUMMARY'))['vm_domain'])")"
 MODULES="$(python3 -c "import json;print(','.join(json.load(open('$INSTALL'))['install_modules']))")"
@@ -98,6 +100,19 @@ init_database() {
   done
 }
 
+set_admin_login() {
+  ADMIN_PASSWORD="$(grep -m1 '^admin_passwd' "$WORKSPACE_DIR/config/odoo.conf" | cut -d= -f2 | tr -d ' ')"
+  log "setting ERP admin login to '$ADMIN_NAME'"
+  docker compose run --rm -T "$ODOO_SERVICE" odoo shell -d "$DB_NAME" --no-http <<EOF || true
+u = env['res.users'].search([('login','=','admin')], limit=1)
+if u:
+    u.login = '$ADMIN_NAME'
+    u.password = '$ADMIN_PASSWORD'
+    env.cr.commit()
+EOF
+  docker compose restart "$ODOO_SERVICE"
+}
+
 setup_nginx() {
   if [[ -z "$TARGET_DOMAIN" ]]; then
     log "no domain configured; Odoo exposed directly on port $ODOO_PORT"
@@ -123,7 +138,7 @@ register_monitoring() {
     log "monitoring config not packaged; skipping"
     return
   fi
-  log "starting monitoring stack (node-exporter :9100, prometheus :9090, grafana :3002, cadvisor :8080)"
+  log "starting monitoring stack (node-exporter :9100, prometheus :9090, grafana :$GRAFANA_PORT, cadvisor :8080)"
   cd "$MONITORING_DIR"
   DB_PASSWORD="$(grep -m1 '^db_password' "$WORKSPACE_DIR/config/odoo.conf" | cut -d= -f2 | tr -d ' ')"
   ADMIN_PASSWORD="$(grep -m1 '^admin_passwd' "$WORKSPACE_DIR/config/odoo.conf" | cut -d= -f2 | tr -d ' ')"
@@ -138,18 +153,18 @@ register_monitoring() {
   export POSTGRES_DB="${DB_NAME}"
   export ODOO_NETWORK="${ODOO_NETWORK}"
   export GF_SECURITY_ADMIN_PASSWORD="${ADMIN_PASSWORD:?admin_passwd missing from odoo.conf}"
-  export GRAFANA_PORT="3002"
+  export GRAFANA_PORT="${GRAFANA_PORT:-3002}"
   docker compose -f docker-compose.monitoring.yml up -d || {
     log "WARNING: monitoring stack failed to start; deploy continues"
     return 1
   }
 
-  log "waiting for grafana dashboard to answer on port 3002"
+  log "waiting for grafana dashboard to answer on port $GRAFANA_PORT"
   for i in $(seq 1 30); do
-    if curl -fsS -o /dev/null "http://localhost:3002/api/health" 2>/dev/null; then
+    if curl -fsS -o /dev/null "http://localhost:${GRAFANA_PORT}/api/health" 2>/dev/null; then
       break
     fi
-    [ "$i" = "30" ] && { log "WARNING: grafana did not answer on :3002 after 60s"; }
+    [ "$i" = "30" ] && { log "WARNING: grafana did not answer on :$GRAFANA_PORT after 60s"; }
     sleep 2
   done
 }
@@ -158,6 +173,7 @@ cd "$WORKSPACE_DIR"
 ensure_docker
 start_stack
 init_database
+set_admin_login
 setup_nginx
 register_monitoring || true
 

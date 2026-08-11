@@ -40,6 +40,8 @@ def generate_summary(env: dict, deployment_id: str) -> dict:
         "status": "package_prepared",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "odoo_port": int(env.get("odoo_port", 8069)),
+        "grafana_port": int(env.get("grafana_port", 3002)),
+        "admin_name": env.get("admin_name", "admin"),
         "domain": env.get("domain", ""),
         "container_prefix": env.get("container_prefix", ""),
         # Phase 2 target VM
