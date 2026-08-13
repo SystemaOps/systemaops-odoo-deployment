@@ -43,6 +43,9 @@ jobs:
           echo "VM_SSH_PORT=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("vm_ssh_port",22))')" >> "$GITHUB_OUTPUT"
           echo "VM_PROVIDER=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("vm_provider",""))')" >> "$GITHUB_OUTPUT"
           echo "SSH_KEY_SECRET=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys,re;print(json.load(sys.stdin).get("ssh_key_secret",""))')" >> "$GITHUB_OUTPUT"
+          echo "BASTION_HOST=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("bastion_host",""))')" >> "$GITHUB_OUTPUT"
+          echo "BASTION_SSH_USER=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("bastion_ssh_user",""))')" >> "$GITHUB_OUTPUT"
+          echo "BASTION_SSH_PORT=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("bastion_ssh_port",22))')" >> "$GITHUB_OUTPUT"
 
       - name: Download Phase 1 artifact
         env:
@@ -91,11 +94,20 @@ jobs:
           VM_HOST: ${{ steps.vm.outputs.VM_HOST }}
           VM_SSH_USER: ${{ steps.vm.outputs.VM_SSH_USER }}
           VM_SSH_PORT: ${{ steps.vm.outputs.VM_SSH_PORT }}
+          BASTION_HOST: ${{ steps.vm.outputs.BASTION_HOST }}
+          BASTION_SSH_USER: ${{ steps.vm.outputs.BASTION_SSH_USER }}
+          BASTION_SSH_PORT: ${{ steps.vm.outputs.BASTION_SSH_PORT }}
         run: |
           set -euo pipefail
           [[ -n "$VM_HOST" ]] || { echo "vm_host missing in deployment_config"; exit 1; }
           REMOTE_DIR="/opt/systemaops/${DEPLOYMENT_ID}"
-          SSH_OPTS="-i ~/.ssh/id_deploy -p $VM_SSH_PORT -o StrictHostKeyChecking=accept-new"
+          if [[ -n "$BASTION_HOST" ]]; then
+            SSH_OPTS="-i ~/.ssh/id_deploy -p $VM_SSH_PORT -o StrictHostKeyChecking=accept-new -J ${BASTION_SSH_USER}@${BASTION_HOST}:${BASTION_SSH_PORT}"
+            SSH_OPTS_B="-i ~/.ssh/id_deploy -P $VM_SSH_PORT -o StrictHostKeyChecking=accept-new -J ${BASTION_SSH_USER}@${BASTION_HOST}:${BASTION_SSH_PORT}"
+          else
+            SSH_OPTS="-i ~/.ssh/id_deploy -p $VM_SSH_PORT -o StrictHostKeyChecking=accept-new"
+            SSH_OPTS_B="-i ~/.ssh/id_deploy -P $VM_SSH_PORT -o StrictHostKeyChecking=accept-new"
+          fi
           for i in 1 2 3; do
             if ssh $SSH_OPTS "${VM_SSH_USER}@${VM_HOST}" "sudo mkdir -p '$REMOTE_DIR' && sudo chown \$(id -u):\$(id -g) '$REMOTE_DIR'"; then
               break
@@ -104,9 +116,9 @@ jobs:
             sleep 3
           done
           for i in 1 2 3; do
-            if scp -P "$VM_SSH_PORT" -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new \
+            if scp $SSH_OPTS_B \
                 -r "$WORKSPACE_DIR/." "${VM_SSH_USER}@${VM_HOST}:$REMOTE_DIR/" \
-              && scp -P "$VM_SSH_PORT" -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new \
+              && scp $SSH_OPTS_B \
                 scripts/deploy/remote_deploy.sh "${VM_SSH_USER}@${VM_HOST}:/tmp/remote_deploy.sh"; then
               break
             fi
@@ -120,12 +132,22 @@ jobs:
           VM_HOST: ${{ steps.vm.outputs.VM_HOST }}
           VM_SSH_USER: ${{ steps.vm.outputs.VM_SSH_USER }}
           VM_SSH_PORT: ${{ steps.vm.outputs.VM_SSH_PORT }}
+          BASTION_HOST: ${{ steps.vm.outputs.BASTION_HOST }}
+          BASTION_SSH_USER: ${{ steps.vm.outputs.BASTION_SSH_USER }}
+          BASTION_SSH_PORT: ${{ steps.vm.outputs.BASTION_SSH_PORT }}
         run: |
           set -euo pipefail
           REMOTE_DIR="/opt/systemaops/${DEPLOYMENT_ID}"
-          ssh -i ~/.ssh/id_deploy -p "$VM_SSH_PORT" -o StrictHostKeyChecking=accept-new \
-            "${VM_SSH_USER}@${VM_HOST}" \
-            "bash /tmp/remote_deploy.sh '$REMOTE_DIR'"
+          if [[ -n "$BASTION_HOST" ]]; then
+            ssh -i ~/.ssh/id_deploy -p "$VM_SSH_PORT" -o StrictHostKeyChecking=accept-new \
+              -J "${BASTION_SSH_USER}@${BASTION_HOST}:${BASTION_SSH_PORT}" \
+              "${VM_SSH_USER}@${VM_HOST}" \
+              "bash /tmp/remote_deploy.sh '$REMOTE_DIR'"
+          else
+            ssh -i ~/.ssh/id_deploy -p "$VM_SSH_PORT" -o StrictHostKeyChecking=accept-new \
+              "${VM_SSH_USER}@${VM_HOST}" \
+              "bash /tmp/remote_deploy.sh '$REMOTE_DIR'"
+          fi
 
       - name: Register VM with central monitoring
         if: >-
