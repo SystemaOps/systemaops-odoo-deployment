@@ -65,15 +65,28 @@ def _update_docker_compose(
 
 
 def _update_odoo_conf(
-    path, db_password: str, db_user: str, db_host: str, admin_password: str
+    path, db_password: str, db_user: str, db_host: str, admin_password: str, db_name: str
 ) -> None:
     content = read_text(path)
     content = content.replace("admin_passwd = admin", f"admin_passwd = {admin_password}")
     content = content.replace("db_host = db", f"db_host = {db_host}")
     content = content.replace("db_user = odoo", f"db_user = {db_user}")
     content = content.replace("db_password = odoo", f"db_password = {db_password}")
+    if db_name:
+        content = content.replace("dbfilter = ^%DB_NAME$", f"dbfilter = ^{db_name}$")
+    else:
+        content = content.replace("dbfilter = ^%DB_NAME$\n", "").replace(
+            "dbfilter = ^%DB_NAME$", ""
+        )
     write_text(path, content)
     info("Updated odoo.conf")
+
+
+def _update_prometheus_conf(path, odoo_port: int) -> None:
+    content = read_text(path)
+    content = content.replace("localhost:8069", f"localhost:{odoo_port}")
+    write_text(path, content)
+    info("Updated prometheus.yml odoo scrape target")
 
 
 def _update_nginx_conf(path, domain: str, deployment_id: str) -> None:
@@ -135,9 +148,14 @@ def main() -> None:
         f"odoo_{container_prefix}",
         f"db_{container_prefix}",
         admin_password,
+        env.get("database_name", ""),
     )
 
     _update_nginx_conf(customer_dir / "nginx.conf", domain, deployment_id)
+
+    prometheus_conf = customer_dir / "monitoring" / "prometheus.yml"
+    if prometheus_conf.exists():
+        _update_prometheus_conf(prometheus_conf, odoo_port)
 
     write_text(
         customer_dir / "monitoring.json",
