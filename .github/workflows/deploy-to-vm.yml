@@ -78,13 +78,14 @@ jobs:
       - name: Set up SSH key
         env:
           SSH_KEY_SECRET: ${{ steps.vm.outputs.SSH_KEY_SECRET }}
+          SSH_KEY_VALUE: ${{ secrets[steps.vm.outputs.SSH_KEY_SECRET] }}
         run: |
           if [[ -z "$SSH_KEY_SECRET" ]]; then
             echo "No SSH key secret configured; skipping VM deployment."
             exit 0
           fi
           mkdir -p ~/.ssh
-          printf '%s\n' "${!SSH_KEY_SECRET}" > ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KEY_VALUE" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           echo "KEY_BYTES=$(wc -c < ~/.ssh/id_deploy)"
           echo "KEY_TAIL=$(tail -c 30 ~/.ssh/id_deploy | od -An -c | tr -d '\n')"
