@@ -126,9 +126,9 @@ jobs:
             [ "$i" = "3" ] && { echo "SSH connection to ${VM_HOST} failed after 3 attempts"; exit 1; }
             sleep 3
           done
+          tar -czf /tmp/workspace.tar.gz -C "$WORKSPACE_DIR" .
           for i in 1 2 3; do
-            if scp $SSH_OPTS_B \
-                -r "$WORKSPACE_DIR/." "${VM_SSH_USER}@${VM_HOST}:$REMOTE_DIR/" \
+            if scp $SSH_OPTS_B /tmp/workspace.tar.gz "${VM_SSH_USER}@${VM_HOST}:/tmp/${DEPLOYMENT_ID}.tar.gz" \
               && scp $SSH_OPTS_B \
                 scripts/deploy/remote_deploy.sh "${VM_SSH_USER}@${VM_HOST}:/tmp/remote_deploy.sh"; then
               break
@@ -136,6 +136,8 @@ jobs:
             [ "$i" = "3" ] && { echo "Transfer to ${VM_HOST} failed after 3 attempts"; exit 1; }
             sleep 3
           done
+          ssh $SSH_OPTS "${VM_SSH_USER}@${VM_HOST}" \
+            "if command -v sudo >/dev/null 2>&1 && [ \"\$(id -u)\" -ne 0 ]; then S='sudo '; else S=''; fi; \${S}tar -xzf /tmp/${DEPLOYMENT_ID}.tar.gz -C '$REMOTE_DIR' && \${S}rm -f /tmp/${DEPLOYMENT_ID}.tar.gz"
 
       - name: Run remote deployment
         if: env.SSH_READY == 'true'
