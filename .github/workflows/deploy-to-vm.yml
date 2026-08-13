@@ -119,7 +119,8 @@ jobs:
             SSH_OPTS_B="-i ~/.ssh/id_deploy -P $VM_SSH_PORT -o StrictHostKeyChecking=accept-new"
           fi
           for i in 1 2 3; do
-            if ssh $SSH_OPTS "${VM_SSH_USER}@${VM_HOST}" "sudo mkdir -p '$REMOTE_DIR' && sudo chown \$(id -u):\$(id -g) '$REMOTE_DIR'"; then
+            if ssh $SSH_OPTS "${VM_SSH_USER}@${VM_HOST}" \
+                "if command -v sudo >/dev/null 2>&1 && [ \"\$(id -u)\" -ne 0 ]; then S='sudo '; else S=''; fi; \${S}mkdir -p '$REMOTE_DIR' && \${S}chown \$(id -u):\$(id -g) '$REMOTE_DIR'"; then
               break
             fi
             [ "$i" = "3" ] && { echo "SSH connection to ${VM_HOST} failed after 3 attempts"; exit 1; }
