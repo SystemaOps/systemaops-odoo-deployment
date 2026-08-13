@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="monitoring_page" name="SystemaOps Monitoring">
+    <template id="monitoring_page" name="Odoo Stack Monitoring">
         <t t-call="web.html_container">
             <t t-set="body_classes" t-value="'systemaops-monitoring'"/>
             <main class="container mt-3">

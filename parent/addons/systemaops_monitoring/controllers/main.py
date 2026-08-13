@@ -12,8 +12,8 @@ _DEFAULT_MONITORING_PORT = 3002
 
 def _grafana_port() -> int:
     """Read the Grafana host port from monitoring.json (mounted by the
-    deployment pipeline). On a SystemaOps-managed server every customer gets
-    their own Grafana port, so it cannot be hardcoded."""
+    deployment pipeline). Every customer gets their own Grafana port, so it
+    cannot be hardcoded."""
     try:
         with open("/etc/odoo/monitoring.json") as fh:
             return int(json.load(fh).get("grafana_port") or _DEFAULT_MONITORING_PORT)

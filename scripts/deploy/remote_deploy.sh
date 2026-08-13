@@ -113,6 +113,29 @@ EOF
   docker compose restart "$ODOO_SERVICE"
 }
 
+set_company_branding() {
+  COMPANY_NAME="$(python3 -c "import json;print(json.load(open('$SUMMARY')).get('company_name', '') or '')" 2>/dev/null || true)"
+  if [[ -z "$COMPANY_NAME" ]]; then
+    log "no company_name in summary; skipping company branding"
+    return
+  fi
+  log "branding ERP as '$COMPANY_NAME' (company name + monitoring menu)"
+  docker compose run --rm -T "$ODOO_SERVICE" odoo shell -d "$DB_NAME" --no-http <<EOF || true
+company = env['res.company'].search([], limit=1)
+if company:
+    company.name = '$COMPANY_NAME'
+# Root monitoring menu -> company name; submenu -> 'Monitoring'
+root = env['ir.ui.menu'].search([('name','in',['SystemaOps','Monitoring']),('parent_id','=',False)], limit=1)
+if root:
+    root.name = '$COMPANY_NAME'
+sub = env['ir.ui.menu'].search([('name','in',['$COMPANY_NAME','SystemaOps'])], limit=1)
+if sub and sub.parent_id and sub.parent_id.id != sub.id:
+    sub.name = 'Monitoring'
+env.cr.commit()
+EOF
+  docker compose restart "$ODOO_SERVICE"
+}
+
 setup_nginx() {
   if [[ -z "$TARGET_DOMAIN" ]]; then
     log "no domain configured; Odoo exposed directly on port $ODOO_PORT"
@@ -174,6 +197,7 @@ ensure_docker
 start_stack
 init_database
 set_admin_login
+set_company_branding
 setup_nginx
 register_monitoring || true
 
