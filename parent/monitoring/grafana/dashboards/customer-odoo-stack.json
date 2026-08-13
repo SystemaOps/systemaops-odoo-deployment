@@ -4,8 +4,8 @@
   "graphTooltip": 1,
   "id": null,
   "title": "Odoo Stack Health",
-  "uid": "systemaops-odoo-stack",
-  "tags": ["systemaops", "odoo", "customer"],
+  "uid": "customer-odoo-stack",
+  "tags": ["customer", "odoo", "erp"],
   "timezone": "browser",
   "time": { "from": "now-6h", "to": "now" },
   "refresh": "30s",
@@ -225,7 +225,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "systemaops_odoo_users"
+          "expr": "odoo_users"
         }
       ]
     },
@@ -240,7 +240,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "systemaops_odoo_contacts"
+          "expr": "odoo_contacts"
         }
       ]
     },
@@ -255,7 +255,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "systemaops_odoo_products"
+          "expr": "odoo_products"
         }
       ]
     },
@@ -270,7 +270,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "systemaops_odoo_http_requests_total"
+          "expr": "odoo_http_requests_total"
         }
       ]
     }

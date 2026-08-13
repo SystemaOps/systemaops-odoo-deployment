@@ -47,15 +47,15 @@ class MonitoringController(http.Controller):
 
         body = "\n".join(
             [
-                "# HELP systemaops_odoo_up Whether the Odoo app is serving metrics.",
-                "# TYPE systemaops_odoo_up gauge",
-                "systemaops_odoo_up 1",
-                "# HELP systemaops_odoo_http_requests_total Requests served by the metrics endpoint.",
-                "# TYPE systemaops_odoo_http_requests_total counter",
-                f"systemaops_odoo_http_requests_total {_requests_total}",
-                self._gauge("systemaops_odoo_users", "res.users", "Active Odoo users."),
-                self._gauge("systemaops_odoo_contacts", "res.partner", "Partners/contacts."),
-                self._gauge("systemaops_odoo_products", "product.template", "Product templates."),
+                "# HELP odoo_up Whether the Odoo app is serving metrics.",
+                "# TYPE odoo_up gauge",
+                "odoo_up 1",
+                "# HELP odoo_http_requests_total Requests served by the metrics endpoint.",
+                "# TYPE odoo_http_requests_total counter",
+                f"odoo_http_requests_total {_requests_total}",
+                self._gauge("odoo_users", "res.users", "Active Odoo users."),
+                self._gauge("odoo_contacts", "res.partner", "Partners/contacts."),
+                self._gauge("odoo_products", "product.template", "Product templates."),
             ]
         )
         return request.make_response(
