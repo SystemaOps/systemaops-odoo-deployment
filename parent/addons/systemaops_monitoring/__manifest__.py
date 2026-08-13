@@ -1,5 +1,5 @@
 {
-    "name": "SystemaOps Monitoring",
+    "name": "Odoo Stack Monitoring",
     "summary": "Embedded monitoring dashboard and Prometheus /metrics endpoint for the deployed Odoo stack",
     "version": "18.0.1.0.0",
     "category": "Tools",

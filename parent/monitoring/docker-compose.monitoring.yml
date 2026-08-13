@@ -2,7 +2,7 @@ version: "3.8"
 
 # Customer-VM monitoring stack. Started by the Phase 2 deploy script.
 # Prometheus scrapes this VM's own agents AND is scraped by the central
-# SystemaOps Prometheus (host ports 9100/9090).
+# managed Prometheus (host ports 9100/9090).
 # Grafana is the customer-facing dashboard (host port 3002); it reuses the
 # Odoo admin password so no extra credential has to be delivered.
 
