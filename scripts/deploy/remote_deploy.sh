@@ -142,17 +142,138 @@ setup_nginx() {
     return
   fi
   log "setting up nginx for domain $TARGET_DOMAIN"
-  if ! docker ps -q --filter "name=nginx_${PREFIX}" | grep -q .; then
-    docker run -d \
-      --name "nginx_${PREFIX}" \
-      --network "$NETWORK" \
-      --restart unless-stopped \
-      -p 80:80 \
-      -p 443:443 \
-      -v "$WORKSPACE_DIR/nginx.conf:/etc/nginx/conf.d/odoo.conf:ro" \
-      nginx:alpine
+
+  WEBROOT="$WORKSPACE_DIR/certbot-webroot"
+  mkdir -p "$WEBROOT"
+
+  # Bootstrap HTTP config serves the ACME challenge so certbot can validate.
+  docker rm -f "nginx_${PREFIX}" >/dev/null 2>&1 || true
+  docker run -d \
+    --name "nginx_${PREFIX}" \
+    --network "$NETWORK" \
+    --restart unless-stopped \
+    -p 80:80 \
+    -p 443:443 \
+    -v "$WORKSPACE_DIR/nginx.conf:/etc/nginx/conf.d/odoo.conf:ro" \
+    -v "$WEBROOT:/var/www/certbot" \
+    -v "$WORKSPACE_DIR/certbot:/etc/letsencrypt" \
+    nginx:alpine
+
+  log "waiting for nginx to answer on port 80"
+  for i in $(seq 1 30); do
+    if curl -fsS -o /dev/null "http://localhost/.well-known/acme-challenge/probe" 2>/dev/null || docker exec "nginx_${PREFIX}" nginx -t >/dev/null 2>&1; then
+      break
+    fi
+    [ "$i" = "30" ] && { log "WARNING: nginx did not become ready; skipping TLS issuance"; }
+    sleep 2
+  done
+
+  # Issue certificate via certbot (webroot method).
+  if docker run --rm \
+      -v "$WEBROOT:/var/www/certbot" \
+      -v "$WORKSPACE_DIR/certbot:/etc/letsencrypt" \
+      certbot/certbot certonly \
+      --webroot -w /var/www/certbot \
+      -d "$TARGET_DOMAIN" \
+      --agree-tos --no-eff-email \
+      -m "${CERTBOT_EMAIL:-admin@systemaops.com}" \
+      --non-interactive; then
+    log "certificate issued for $TARGET_DOMAIN; enabling HTTPS"
+    if [[ -f "$WORKSPACE_DIR/nginx-ssl.conf" ]]; then
+      docker rm -f "nginx_${PREFIX}" >/dev/null 2>&1 || true
+      docker run -d \
+        --name "nginx_${PREFIX}" \
+        --network "$NETWORK" \
+        --restart unless-stopped \
+        -p 80:80 \
+        -p 443:443 \
+        -v "$WORKSPACE_DIR/nginx-ssl.conf:/etc/nginx/conf.d/odoo.conf:ro" \
+        -v "$WEBROOT:/var/www/certbot" \
+        -v "$WORKSPACE_DIR/certbot:/etc/letsencrypt" \
+        nginx:alpine
+    fi
+  else
+    log "WARNING: certbot could not obtain a certificate for $TARGET_DOMAIN"
+    log "         ensure the domain's A record points to this server and retry"
   fi
-  log "nginx running; add an A record for $TARGET_DOMAIN -> this server and issue TLS (certbot) manually"
+
+  # Install a daily renewal timer (systemd) so the cert never expires.
+  RENEW_UNIT="/etc/systemd/system/systemaops-renew-${PREFIX}.service"
+  RENEW_TIMER="/etc/systemd/system/systemaops-renew-${PREFIX}.timer"
+  cat > "$RENEW_UNIT" <<EOF
+[Unit]
+Description=Renew Let's Encrypt certificate for $TARGET_DOMAIN
+
+[Service]
+Type=oneshot
+ExecStart=docker run --rm -v $WEBROOT:/var/www/certbot -v $WORKSPACE_DIR/certbot:/etc/letsencrypt certbot/certbot renew --webroot -w /var/www/certbot
+ExecStartPost=/bin/sh -c 'docker exec nginx_${PREFIX} nginx -s reload 2>/dev/null || true'
+EOF
+  cat > "$RENEW_TIMER" <<EOF
+[Unit]
+Description=Daily Let's Encrypt renewal for $TARGET_DOMAIN
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload
+    systemctl enable --now "systemaops-renew-${PREFIX}.timer" 2>/dev/null || \
+      log "WARNING: could not enable renew timer"
+  else
+    (crontab -l 2>/dev/null; echo "0 3 * * * docker run --rm -v $WEBROOT:/var/www/certbot -v $WORKSPACE_DIR/certbot:/etc/letsencrypt certbot/certbot renew --webroot -w /var/www/certbot >> /var/log/systemaops-renew-${PREFIX}.log 2>&1") | crontab -
+  fi
+  log "nginx running with HTTPS for $TARGET_DOMAIN; renewal scheduled"
+}
+
+setup_backups() {
+  log "installing automated database backups"
+  BACKUP_ROOT="/srv/backups"
+  BACKUP_SCRIPT="/usr/local/sbin/systemaops-backup.sh"
+  mkdir -p "$BACKUP_ROOT"
+
+  cp "$WORKSPACE_DIR/backup_odoo.sh" "$BACKUP_SCRIPT"
+  chmod +x "$BACKUP_SCRIPT"
+
+  BACKUP_UNIT="/etc/systemd/system/systemaops-backup.service"
+  BACKUP_TIMER="/etc/systemd/system/systemaops-backup.timer"
+  cat > "$BACKUP_UNIT" <<EOF
+[Unit]
+Description=SystemaOps customer Odoo database backups
+
+[Service]
+Type=oneshot
+Environment=BACKUP_ROOT=$BACKUP_ROOT
+Environment=RETENTION_DAYS=7
+ExecStart=$BACKUP_SCRIPT $WORKSPACE_DIR/..
+EOF
+  cat > "$BACKUP_TIMER" <<EOF
+[Unit]
+Description=Nightly SystemaOps customer backups
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload
+    systemctl enable --now systemaops-backup.timer 2>/dev/null || \
+      log "WARNING: could not enable backup timer"
+  else
+    (crontab -l 2>/dev/null; echo "30 2 * * * $BACKUP_SCRIPT $WORKSPACE_DIR/.. >> /var/log/systemaops-backup.log 2>&1") | crontab -
+  fi
+
+  log "running initial backup"
+  BACKUP_ROOT="$BACKUP_ROOT" RETENTION_DAYS=7 "$BACKUP_SCRIPT" "$WORKSPACE_DIR/.." && \
+    log "initial backup completed to $BACKUP_ROOT" || \
+    log "WARNING: initial backup reported a problem (containers may still be starting)"
 }
 
 register_monitoring() {
@@ -200,5 +321,6 @@ set_admin_login
 set_company_branding
 setup_nginx
 register_monitoring || true
+setup_backups || true
 
 echo "==> Phase 2 deploy complete: http://${TARGET_DOMAIN:-$ODOO_PORT}" 

@@ -89,16 +89,30 @@ def _update_prometheus_conf(path, odoo_port: int) -> None:
     info("Updated prometheus.yml odoo scrape target")
 
 
-def _update_nginx_conf(path, domain: str, deployment_id: str) -> None:
-    content = read_text(path)
-    if domain:
-        content = content.replace("server_name _;", f"server_name {domain};")
-    else:
-        content = content.replace(
+def _update_nginx_conf(
+    customer_dir: Path, domain: str, deployment_id: str, odoo_service: str
+) -> None:
+    http_path = customer_dir / "nginx.conf"
+    ssl_path = customer_dir / "nginx-ssl.conf"
+
+    http_content = read_text(http_path)
+    http_content = http_content.replace("__ODOO_SERVICE__", odoo_service)
+    if not domain:
+        http_content = http_content.replace(
             "server_name _;", f"server_name {deployment_id.lower()}.systemaops.local;"
         )
-    write_text(path, content)
+    write_text(http_path, http_content)
     info("Updated nginx.conf")
+
+    if domain and ssl_path.exists():
+        ssl_content = read_text(ssl_path)
+        ssl_content = ssl_content.replace("__DOMAIN__", domain)
+        ssl_content = ssl_content.replace("__ODOO_SERVICE__", odoo_service)
+        write_text(ssl_path, ssl_content)
+        info("Updated nginx-ssl.conf for TLS domain")
+    elif ssl_path.exists():
+        ssl_path.unlink()
+        info("Removed nginx-ssl.conf (no domain configured)")
 
 
 def main() -> None:
@@ -151,7 +165,12 @@ def main() -> None:
         env.get("database_name", ""),
     )
 
-    _update_nginx_conf(customer_dir / "nginx.conf", domain, deployment_id)
+    _update_nginx_conf(
+        customer_dir,
+        domain,
+        deployment_id,
+        f"odoo_{container_prefix}",
+    )
 
     prometheus_conf = customer_dir / "monitoring" / "prometheus.yml"
     if prometheus_conf.exists():
