@@ -51,6 +51,7 @@ def generate_summary(env: dict, deployment_id: str) -> dict:
         "vm_ssh_port": int(env.get("vm_ssh_port", 22) or 22),
         "vm_domain": env.get("vm_domain", ""),
         "ssh_key_secret": env.get("ssh_key_secret", ""),
+        "offsite_target": env.get("offsite_target", ""),
     }
     return summary
 

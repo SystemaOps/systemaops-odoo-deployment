@@ -28,6 +28,7 @@ OPTIONAL_FIELDS = {
     "vm_ssh_port": 22,
     "vm_domain": "",
     "ssh_key_secret": "",
+    "offsite_target": "",
 }
 
 

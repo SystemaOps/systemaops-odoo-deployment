@@ -239,6 +239,8 @@ setup_backups() {
   cp "$WORKSPACE_DIR/backup_odoo.sh" "$BACKUP_SCRIPT"
   chmod +x "$BACKUP_SCRIPT"
 
+  OFF_TARGET="$(python3 -c "import json;print(json.load(open('$SUMMARY')).get('offsite_target',''))" 2>/dev/null || true)"
+
   BACKUP_UNIT="/etc/systemd/system/systemaops-backup.service"
   BACKUP_TIMER="/etc/systemd/system/systemaops-backup.timer"
   cat > "$BACKUP_UNIT" <<EOF
@@ -249,6 +251,7 @@ Description=SystemaOps customer Odoo database backups
 Type=oneshot
 Environment=BACKUP_ROOT=$BACKUP_ROOT
 Environment=RETENTION_DAYS=7
+Environment=OFFSITE_TARGET=$OFF_TARGET
 ExecStart=$BACKUP_SCRIPT $WORKSPACE_DIR/..
 EOF
   cat > "$BACKUP_TIMER" <<EOF
@@ -267,12 +270,12 @@ EOF
     systemctl enable --now systemaops-backup.timer 2>/dev/null || \
       log "WARNING: could not enable backup timer"
   else
-    (crontab -l 2>/dev/null; echo "30 2 * * * $BACKUP_SCRIPT $WORKSPACE_DIR/.. >> /var/log/systemaops-backup.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "30 2 * * * OFFSITE_TARGET=$OFF_TARGET $BACKUP_SCRIPT $WORKSPACE_DIR/.. >> /var/log/systemaops-backup.log 2>&1") | crontab -
   fi
 
   log "running initial backup"
-  BACKUP_ROOT="$BACKUP_ROOT" RETENTION_DAYS=7 "$BACKUP_SCRIPT" "$WORKSPACE_DIR/.." && \
-    log "initial backup completed to $BACKUP_ROOT" || \
+  BACKUP_ROOT="$BACKUP_ROOT" RETENTION_DAYS=7 OFFSITE_TARGET="$OFF_TARGET" "$BACKUP_SCRIPT" "$WORKSPACE_DIR/.." && \
+    log "initial backup completed to $BACKUP_ROOT${OFF_TARGET:+ and offsite to $OFF_TARGET}" || \
     log "WARNING: initial backup reported a problem (containers may still be starting)"
 }
 

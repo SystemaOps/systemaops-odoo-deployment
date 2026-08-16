@@ -1,7 +1,9 @@
 #!/bin/bash
 # Odoo backup script for customer VMs (Phase 2).
-# Self-discovering: reads DB credentials from the deployed odoo.conf and
-# resolves containers from the running docker-compose stack.
+# Mirrors the SystemaOps internal backup: db + filestore + project archive,
+# flock serialization and retention cleanup. Self-discovering across all
+# customer workspaces under PROJECT_DIR so one nightly run covers every
+# deployment on the host.
 set -euo pipefail
 
 PROJECT_DIR="${1:-/opt/systemaops}"
@@ -11,9 +13,11 @@ BACKUP_DIR="$BACKUP_ROOT/$DATE"
 LOCK_FILE="/var/lock/systemaops_backup.lock"
 
 exec 9>"$LOCK_FILE"
-flock -n 9 || { echo "Backup already running"; exit 0; }
+flock -n 9 || exit 0
 
 mkdir -p "$BACKUP_DIR"
+
+echo "Backup started $(date)"
 
 find "$PROJECT_DIR" -maxdepth 2 -name deployment_summary.json -print0 | while IFS= read -r -d '' SUMMARY; do
   WORKSPACE="$(dirname "$SUMMARY")"
@@ -28,17 +32,21 @@ find "$PROJECT_DIR" -maxdepth 2 -name deployment_summary.json -print0 | while IF
   cd "$WORKSPACE"
   DB_CONTAINER="$(docker compose ps -q db_${PREFIX} 2>/dev/null || true)"
   ODOO_CONTAINER="$(docker compose ps -q odoo_${PREFIX} 2>/dev/null || true)"
-  [ -n "$DB_CONTAINER" ] && [ -n "$ODOO_CONTAINER" ] || { echo "Containers not running for $DEPLOYMENT_ID"; continue; }
+
+  if [ -z "$DB_CONTAINER" ] || [ -z "$ODOO_CONTAINER" ]; then
+    echo "Containers not running for $DEPLOYMENT_ID"
+    continue
+  fi
 
   echo "Backing up $DEPLOYMENT_ID ($DB_NAME)"
 
-  # Database dump
+  # Database backup
   docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" | gzip > "$SUBDIR/db.sql.gz"
 
-  # Odoo filestore
+  # Filestore backup
   docker exec "$ODOO_CONTAINER" tar -czf - /var/lib/odoo > "$SUBDIR/filestore.tar.gz"
 
-  # Config and addons snapshot
+  # Project backup
   tar -czf "$SUBDIR/systemaops.tar.gz" -C "$WORKSPACE" .
 
   # Offsite copy hook (optional): point OFFSITE_TARGET to an rsync/scp destination.
