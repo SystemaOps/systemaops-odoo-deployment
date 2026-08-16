@@ -169,17 +169,22 @@ jobs:
         continue-on-error: true
         env:
           VM_HOST: ${{ steps.vm.outputs.VM_HOST }}
+          VM_SSH_USER: ${{ steps.vm.outputs.VM_SSH_USER }}
+          VM_SSH_PORT: ${{ steps.vm.outputs.VM_SSH_PORT }}
           VM_PROVIDER: ${{ steps.vm.outputs.VM_PROVIDER }}
           CENTRAL_REGISTER_URL: ${{ github.event.inputs.central_register_url }}
           CENTRAL_REGISTER_TOKEN: ${{ secrets.CENTRAL_REGISTER_TOKEN }}
         run: |
           set -euo pipefail
+          # Registration is performed from the deployment VM so the central
+          # URL is resolved from within the customer's network.
           for i in 1 2 3; do
-            if curl -fsS -X POST "${CENTRAL_REGISTER_URL}/api/monitoring/register" \
-              -H "X-Register-Token: ${CENTRAL_REGISTER_TOKEN}" \
-              --data-urlencode "deployment_id=${DEPLOYMENT_ID}" \
-              --data-urlencode "host=${VM_HOST}" \
-              --data-urlencode "labels=provider=${VM_PROVIDER:-}"; then
+            if ssh -i ~/.ssh/id_deploy -p "${VM_SSH_PORT}" -o StrictHostKeyChecking=accept-new "${VM_SSH_USER}@${VM_HOST}" \
+              "curl -fsS -X POST '${CENTRAL_REGISTER_URL}/api/monitoring/register' \
+                 -H 'X-Register-Token: ${CENTRAL_REGISTER_TOKEN}' \
+                 --data-urlencode 'deployment_id=${DEPLOYMENT_ID}' \
+                 --data-urlencode 'host=${VM_HOST}' \
+                 --data-urlencode 'labels=provider=${VM_PROVIDER:-}'"; then
               echo "Registered ${DEPLOYMENT_ID} (${VM_HOST}) with central monitoring."
               exit 0
             fi
