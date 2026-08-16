@@ -4,6 +4,7 @@ import os
 import secrets
 import string
 import sys
+from pathlib import Path
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, _REPO_ROOT)
