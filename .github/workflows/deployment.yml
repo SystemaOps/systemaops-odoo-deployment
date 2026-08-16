@@ -34,6 +34,9 @@ jobs:
       - name: Create Customer Workspace
         run: python3 scripts/prepare/create_workspace.py
 
+      - name: Write Branding Assets
+        run: python3 scripts/prepare/write_branding_assets.py
+
       - name: Update Configuration Files
         env:
           DEPLOYMENT_ADMIN_PASSWORD: ${{ github.event.inputs.admin_password }}
