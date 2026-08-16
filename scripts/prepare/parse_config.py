@@ -29,6 +29,9 @@ OPTIONAL_FIELDS = {
     "vm_domain": "",
     "ssh_key_secret": "",
     "offsite_target": "",
+    # Customer branding (base64 data URLs) applied to Odoo after deployment.
+    "company_logo": "",
+    "owner_photo": "",
 }
 
 

@@ -136,6 +136,42 @@ EOF
   docker compose restart "$ODOO_SERVICE"
 }
 
+set_branding_assets() {
+  BRAND_DIR="$WORKSPACE_DIR/branding"
+  LOGO_FILE="$BRAND_DIR/company_logo.png"
+  PHOTO_FILE="$BRAND_DIR/owner_photo.png"
+  if [[ ! -f "$LOGO_FILE" ]] && [[ ! -f "$PHOTO_FILE" ]]; then
+    log "no branding assets packaged; skipping company logo / owner photo"
+    return
+  fi
+
+  log "applying company logo and owner profile picture"
+  docker compose run --rm -T \
+    -v "$BRAND_DIR:/branding:ro" \
+    -e BRAND_ADMIN_LOGIN="$ADMIN_NAME" \
+    "$ODOO_SERVICE" odoo shell -d "$DB_NAME" --no-http <<'EOF' || true
+import base64
+import os
+
+company = env['res.company'].search([], limit=1)
+if company and os.path.exists('/branding/company_logo.png'):
+    with open('/branding/company_logo.png', 'rb') as f:
+        logo = base64.b64encode(f.read()).decode()
+    company.logo = logo
+    company.logo_web = logo
+
+user = env['res.users'].search(
+    [('login', '=', os.environ.get('BRAND_ADMIN_LOGIN', 'admin'))], limit=1)
+if user and os.path.exists('/branding/owner_photo.png'):
+    with open('/branding/owner_photo.png', 'rb') as f:
+        photo = base64.b64encode(f.read()).decode()
+    user.image_1920 = photo
+
+env.cr.commit()
+EOF
+  docker compose restart "$ODOO_SERVICE"
+}
+
 setup_nginx() {
   if [[ -z "$TARGET_DOMAIN" ]]; then
     log "no domain configured; Odoo exposed directly on port $ODOO_PORT"
@@ -322,6 +358,7 @@ start_stack
 init_database
 set_admin_login
 set_company_branding
+set_branding_assets
 setup_nginx
 register_monitoring || true
 setup_backups || true
