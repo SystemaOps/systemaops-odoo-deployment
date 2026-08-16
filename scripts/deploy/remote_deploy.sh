@@ -58,6 +58,9 @@ ensure_docker() {
 
 start_stack() {
   cd "$WORKSPACE_DIR"
+  log "removing any stale containers for this stack before start"
+  docker compose down --remove-orphans >/dev/null 2>&1 || true
+  docker compose rm -sf >/dev/null 2>&1 || true
   log "building and starting stack"
   for i in 1 2 3; do
     if docker compose up -d --build --wait 2>/dev/null || docker compose up -d --build; then
