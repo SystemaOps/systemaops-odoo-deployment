@@ -67,9 +67,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
-          DEPLOYMENT_CONFIG: ${{ github.event.inputs.deployment_config }}
           CENTRAL_REGISTER_URL: ${{ vars.CENTRAL_REGISTER_URL }}
         run: |
+          DEPLOYMENT_CONFIG="${{ github.event.inputs.deployment_config }}"
           if [[ -z "$DEPLOYMENT_CONFIG" ]]; then
             echo "No deployment_config provided; skipping Phase 2."
             exit 0
