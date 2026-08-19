@@ -56,12 +56,84 @@ def generate_summary(env: dict, deployment_id: str) -> dict:
     return summary
 
 
+# Module display name -> Odoo technical code mapping
+MODULE_CODE_MAP = {
+    'CRM': 'crm',
+    'Sales': 'sale_management',
+    'Purchase': 'purchase',
+    'Inventory': 'stock',
+    'Manufacturing': 'mrp',
+    'Accounting': 'account',
+    'HR': 'hr',
+    'Payroll': 'hr_payroll',
+    'POS': 'point_of_sale',
+    'Website': 'website',
+    'Project': 'project',
+    'Helpdesk': 'helpdesk',
+    'Quality': 'quality',
+    'Maintenance': 'maintenance',
+    'Rental': 'rental',
+    'Knowledge': 'knowledge',
+    'Marketing': 'marketing',
+    'Planning': 'planning',
+    'Field Service': 'fieldservice',
+    'Contacts': 'contacts',
+    'Discuss': 'discuss',
+    'Studio': 'web_studio',
+    'eCommerce': 'website_sale',
+    'Blog': 'blog',
+    'Forum': 'forum',
+    'Live Chat': 'im_livechat',
+    'eLearning': 'website_slides',
+    'Point of Sale': 'point_of_sale',
+    'Subscriptions': 'sale_subscription',
+    'Invoicing': 'account_accountant',
+    'Expenses': 'hr_expense',
+    'Documents': 'documents',
+    'Spreadsheets': 'spreadsheet',
+    'Sign': 'sign',
+    'ESG': 'esg',
+    'PLM': 'mrp_plm',
+    'Repair': 'repair',
+    'Employees': 'hr',
+    'Recruitment': 'hr_recruitment',
+    'Time Off': 'hr_holidays',
+    'Appraisals': 'hr_appraisal',
+    'Referral': 'hr_referral',
+    'Fleet': 'fleet',
+    'Marketing Automation': 'marketing_automation',
+    'Email Marketing': 'mass_mailing',
+    'SMS Marketing': 'sms',
+    'Social Marketing': 'social_marketing',
+    'Events': 'event',
+    'Survey': 'survey',
+    'Timesheets': 'hr_timesheet',
+    'Appointments': 'appointment',
+    'Approvals': 'approval',
+    'Internet of Things': 'iot',
+    'VoIP': 'voip',
+    'AI': 'ai',
+    'WhatsApp': 'whatsapp',
+}
+
+
+def map_modules(display_names: list[str]) -> list[str]:
+    """Convert display names to Odoo technical codes."""
+    mapped = []
+    for name in display_names:
+        mapped.append(MODULE_CODE_MAP.get(name, name.lower().replace(' ', '_')))
+    return mapped
+
+
 def generate_install_modules(env: dict) -> dict:
     modules_raw = env.get("selected_modules", "[]")
     try:
         modules = json.loads(modules_raw)
     except (json.JSONDecodeError, TypeError):
         modules = []
+
+    # Convert display names to Odoo technical codes
+    modules = map_modules(modules)
 
     # The monitoring addon (menu + /monitoring + /metrics) ships with every
     # deployment, so it must always be in the init/install list.
