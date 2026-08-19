@@ -83,7 +83,7 @@ jobs:
           API_URL="https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy-to-vm.yml/dispatches"
           
           # Build payload using jq for proper JSON escaping
-          cat > /tmp/payload.json <<EOF
+          cat > /tmp/payload.json <<'EOF'
 {
   "ref": "${{ github.ref_name }}",
   "inputs": {
