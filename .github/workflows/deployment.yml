@@ -97,7 +97,7 @@ jobs:
             }')
           
           echo "Triggering deploy-to-vm workflow..."
-          echo "$PAYLOAD" > /tmp/payload.json
+          printf "%s" "$PAYLOAD" > /tmp/payload.json
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
