@@ -62,23 +62,54 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      contents: read
     steps:
       - name: Trigger deploy-to-vm workflow
         env:
           GH_TOKEN: ${{ github.token }}
           DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
+          DEPLOYMENT_CONFIG: ${{ github.event.inputs.deployment_config }}
           CENTRAL_REGISTER_URL: ${{ vars.CENTRAL_REGISTER_URL }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
         run: |
+          set -euo pipefail
           DEPLOYMENT_CONFIG="${{ github.event.inputs.deployment_config }}"
           if [[ -z "$DEPLOYMENT_CONFIG" ]]; then
             echo "No deployment_config provided; skipping Phase 2."
             exit 0
           fi
-          gh workflow run deploy-to-vm.yml \
-            -R "${{ github.repository }}" \
-            --ref "${{ github.ref_name }}" \
-            -f deployment_id="$DEPLOYMENT_ID" \
-            -f deployment_config="$DEPLOYMENT_CONFIG" \
-            -f source_run_id="${{ github.run_id }}" \
-            ${CENTRAL_REGISTER_URL:+-f central_register_url="$CENTRAL_REGISTER_URL"}
-          echo "Phase 2 deploy-to-vm workflow triggered."
+          
+          # Use GitHub REST API directly instead of gh CLI for reliability
+          API_URL="https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy-to-vm.yml/dispatches"
+          
+          # Build payload using jq for proper JSON escaping
+          cat > /tmp/payload.json <<EOF
+{
+  "ref": "${{ github.ref_name }}",
+  "inputs": {
+    "deployment_id": "${{ github.event.inputs.deployment_id }}",
+    "deployment_config": $(echo "${{ github.event.inputs.deployment_config }}" | jq -Rs .),
+    "source_run_id": "${{ github.run_id }}",
+    "central_register_url": "${{ vars.CENTRAL_REGISTER_URL }}"
+  }
+}
+EOF
+          
+          echo "Triggering deploy-to-vm workflow..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/payload.json \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy-to-vm.yml/dispatches")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          
+          if [[ "$HTTP_CODE" == "204" ]]; then
+            echo "Phase 2 deploy-to-vm workflow triggered successfully."
+          else
+            echo "Failed to trigger Phase 2. HTTP $HTTP_CODE"
+            echo "Response: $BODY"
+            exit 1
+          fi
