@@ -15,6 +15,11 @@ on:
         description: "Customer-chosen Odoo 'admin' login password (masked)."
         required: false
         type: password
+      # Force workflow definition refresh: 2026-08-19
+      force_refresh:
+        description: "Internal: force workflow definition refresh"
+        required: false
+        type: boolean
 
 env:
   DEPLOYMENT_ID: ${{ github.event.inputs.deployment_id }}
