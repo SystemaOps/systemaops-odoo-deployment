@@ -47,33 +47,101 @@ jobs:
           echo "BASTION_SSH_USER=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("bastion_ssh_user",""))')" >> "$GITHUB_OUTPUT"
           echo "BASTION_SSH_PORT=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("bastion_ssh_port",22))')" >> "$GITHUB_OUTPUT"
 
-      - name: Download Phase 1 artifact
+      - name: Download Phase 1 artifact (optional)
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN_ID: ${{ github.event.inputs.source_run_id }}
           ARTIFACT_NAME: deployment-${{ github.event.inputs.deployment_id }}
         run: |
           set -euo pipefail
-          [[ -n "$SOURCE_RUN_ID" ]] || { echo "source_run_id not provided; cannot locate Phase 1 artifact."; exit 1; }
-          for i in 1 2 3; do
-            if gh run download "$SOURCE_RUN_ID" \
-                -R "${{ github.repository }}" \
-                -n "$ARTIFACT_NAME" \
-                -D artifact; then
-              break
-            fi
-            [ "$i" = "3" ] && { echo "Artifact download failed after 3 attempts"; exit 1; }
-            sleep 3
-          done
+          if [[ -n "$SOURCE_RUN_ID" ]]; then
+            echo "Downloading Phase 1 artifact from run $SOURCE_RUN_ID..."
+            for i in 1 2 3; do
+              if gh run download "$SOURCE_RUN_ID" \
+                  -R "${{ github.repository }}" \
+                  -n "$ARTIFACT_NAME" \
+                  -D artifact; then
+                echo "Artifact downloaded successfully"
+                break
+              fi
+              [ "$i" = "3" ] && { echo "Artifact download failed after 3 attempts"; exit 1; }
+              sleep 3
+            done
+          else
+            echo "No source_run_id provided; skipping artifact download."
+          fi
 
       - name: Locate and stage workspace
         run: |
-          SUMMARY="$(find artifact -type f -name deployment_summary.json | head -1)"
-          [[ -n "$SUMMARY" ]] || { echo "deployment_summary.json not found in artifact"; exit 1; }
+          set -euo pipefail
+          if [[ -f "artifact/deployment_summary.json" ]]; then
+            # Artifact was downloaded, use it
+            SUMMARY="artifact/deployment_summary.json"
+          else
+            # No artifact downloaded, generate workspace from deployment_config
+            echo "Generating workspace from deployment_config..."
+            mkdir -p artifact
+            echo '${{ github.event.inputs.deployment_config }}' > artifact/deployment_config.json
+            # Parse deployment_config to extract key fields
+            CONFIG='${{ github.event.inputs.deployment_config }}'
+            echo "$CONFIG" | python3 -c "
+import json, sys, os, re, base64
+config = json.load(sys.stdin)
+# Write deployment_summary.json
+summary = {
+    'deployment_id': os.environ.get('DEPLOYMENT_ID', ''),
+    'company_name': config.get('company_name', ''),
+    'database_name': config.get('database_name', ''),
+    'industry': config.get('industry', ''),
+    'timezone': config.get('timezone', 'UTC'),
+    'number_of_users': int(config.get('number_of_users', 10)),
+    'module_count': len(config.get('selected_modules', [])),
+    'status': 'package_prepared',
+    'created_at': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+    'odoo_port': int(config.get('odoo_port', 8069)),
+    'grafana_port': int(config.get('grafana_port', 3002)),
+    'admin_name': config.get('admin_name', 'admin'),
+    'domain': config.get('domain', ''),
+    'container_prefix': re.sub(r'[^a-zA-Z0-9]', '', config.get('company_name', '').lower())[:12],
+    'vm_provider': config.get('vm_provider', ''),
+    'vm_host': config.get('vm_host', ''),
+    'vm_ssh_user': config.get('vm_ssh_user', ''),
+    'vm_ssh_port': int(config.get('vm_ssh_port', 22) or 22),
+    'vm_domain': config.get('vm_domain', ''),
+    'ssh_key_secret': config.get('ssh_key_secret', ''),
+    'offsite_target': config.get('offsite_target', ''),
+    'company_logo': config.get('company_logo', ''),
+    'owner_photo': config.get('owner_photo', ''),
+}
+with open('artifact/deployment_summary.json', 'w') as f:
+    json.dump(summary, f, indent=2)
+"
+            SUMMARY="artifact/deployment_summary.json"
+          fi
+          [[ -n "$SUMMARY" ]] || { echo "deployment_summary.json not found"; exit 1; }
           WORKSPACE_DIR="$(dirname "$SUMMARY")"
           echo "WORKSPACE_DIR=$WORKSPACE_DIR" >> "$GITHUB_ENV"
           echo "Using workspace: $WORKSPACE_DIR"
           test -f "$WORKSPACE_DIR/deployment_summary.json"
+
+      - name: Write branding assets
+        run: |
+          set -euo pipefail
+          CONFIG='${{ github.event.inputs.deployment_config }}'
+          echo "$CONFIG" | python3 -c "
+import json, sys, base64, os
+config = json.load(sys.stdin)
+branding_dir = 'artifact/branding'
+os.makedirs(branding_dir, exist_ok=True)
+if config.get('company_logo'):
+    data = config['company_logo'].split(',')[1] if ',' in config['company_logo'] else config['company_logo']
+    with open(os.path.join(branding_dir, 'company_logo.png'), 'wb') as f:
+        f.write(base64.b64decode(data))
+if config.get('owner_photo'):
+    data = config['owner_photo'].split(',')[1] if ',' in config['owner_photo'] else config['owner_photo']
+    with open(os.path.join(branding_dir, 'owner_photo.png'), 'wb') as f:
+        f.write(base64.b64decode(data))
+"
 
       - name: Set up SSH key
         env:
