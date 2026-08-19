@@ -1,6 +1,6 @@
 name: SystemaOps Odoo Deployment Pipeline
 
-"on":
+on:
   workflow_dispatch:
     inputs:
       deployment_id:
