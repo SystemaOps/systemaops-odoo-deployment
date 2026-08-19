@@ -1,6 +1,6 @@
 name: SystemaOps Odoo Deployment Pipeline
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       deployment_id:
@@ -79,28 +79,29 @@ jobs:
             exit 0
           fi
           
-          # Use GitHub REST API directly instead of gh CLI for reliability
-          API_URL="https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy-to-vm.yml/dispatches"
-          
-          # Build payload using jq for proper JSON escaping
-          cat > /tmp/payload.json <<'EOF'
-{
-  "ref": "${{ github.ref_name }}",
-  "inputs": {
-    "deployment_id": "${{ github.event.inputs.deployment_id }}",
-    "deployment_config": $(echo "${{ github.event.inputs.deployment_config }}" | jq -Rs .),
-    "source_run_id": "${{ github.run_id }}",
-    "central_register_url": "${{ vars.CENTRAL_REGISTER_URL }}"
-  }
-}
-EOF
+          # Build JSON payload using jq to avoid YAML heredoc issues
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref_name }}" \
+            --arg deployment_id "${{ github.event.inputs.deployment_id }}" \
+            --arg deployment_config "${{ github.event.inputs.deployment_config }}" \
+            --arg source_run_id "${{ github.run_id }}" \
+            --arg central_register_url "${{ vars.CENTRAL_REGISTER_URL }}" \
+            '{
+              ref: $ref,
+              inputs: {
+                deployment_id: $deployment_id,
+                deployment_config: $deployment_config,
+                source_run_id: $source_run_id,
+                central_register_url: $central_register_url
+              }
+            }')
           
           echo "Triggering deploy-to-vm workflow..."
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
-            -d @/tmp/payload.json \
+            -d "$PAYLOAD" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy-to-vm.yml/dispatches")
           
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
