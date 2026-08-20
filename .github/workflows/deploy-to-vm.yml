@@ -260,3 +260,4 @@ if config.get('owner_photo'):
           done
           echo "WARNING: central monitoring registration failed; deploy still succeeded."
 # Updated: Wed Aug 19 18:25:55 IST 2026
+
